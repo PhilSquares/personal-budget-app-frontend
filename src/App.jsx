@@ -1,95 +1,93 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useState, useEffect } from "react";
+import "./App.css";
 
-const App = () => {
-    const [envelopes, setEnvelopes] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState('');
-    const [newEnvelope, setNewEnvelope] = useState({ title: '', budget: '' });
+function App() {
+  const [envelopes, setEnvelopes] = useState([]);
+  const [transactions, setTransactions] = useState([]);
+  const [updateValue, setUpdateValue] = useState("");
+  const [selectedEnvelope, setSelectedEnvelope] = useState(null);
 
-    // Fetch envelopes from the backend
-    useEffect(() => {
-        const fetchEnvelopes = async () => {
-            try {
-                const response = await axios.get('http://localhost:3000/envelopes');
-                setEnvelopes(response.data.envelopes);
-                setLoading(false);
-            } catch (err) {
-                setError('Error fetching envelopes');
-                setLoading(false);
-            }
-        };
-
-        fetchEnvelopes();
-    }, []);
-
-    // Handle input changes
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setNewEnvelope({ ...newEnvelope, [name]: value });
-    };
-
-    // Create a new envelope
-    const createEnvelope = async (e) => {
-        e.preventDefault();
-        try {
-            const response = await axios.post('http://localhost:3000/envelopes', newEnvelope);
-            setEnvelopes([...envelopes, response.data.envelope]);
-            setNewEnvelope({ title: '', budget: '' });
-        } catch (err) {
-            setError('Error creating envelope');
+  // Fetch envelopes and transactions
+  useEffect(() => {
+    console.log("Fetching envelopes...");
+    fetch("http://localhost:3000/envelopes")
+      .then((res) => res.json())
+      .then((data) => {
+        console.log("Envelopes fetched:", data.envelopes);
+        setEnvelopes(data.envelopes);
+      })
+      .catch((err) => console.error("Error fetching envelopes:", err));
+  
+    console.log("Fetching transactions...");
+    fetch("http://localhost:3000/transactions")
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Failed to fetch transactions");
         }
-    };
+        return res.json();
+      })
+      .then((data) => {
+        console.log("Transactions fetched:", data.transactions);
+        setTransactions(data.transactions);
+      })
+      .catch((err) => console.error("Error fetching transactions:", err));
+  }, []);  
 
-    // Delete an envelope
-    const deleteEnvelope = async (id) => {
-        try {
-            await axios.delete(`http://localhost:3000/envelopes/${id}`);
-            setEnvelopes(envelopes.filter(env => env.id !== id));
-        } catch (err) {
-            setError('Error deleting envelope');
-        }
-    };
+  // Update envelope budget
+  const handleUpdate = (id) => {
+    if (!updateValue || isNaN(updateValue)) {
+      alert("Please enter a valid number.");
+      return;
+    }
 
-    if (loading) return <p>Loading envelopes...</p>;
-    if (error) return <p>{error}</p>;
+    fetch(`http://localhost:3000/envelopes/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ budget: parseFloat(updateValue) }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        console.log("Envelope updated:", data);
+        setEnvelopes(envelopes.map((env) => (env.id === id ? data.envelope : env)));
+        setUpdateValue("");
+      })
+      .catch((err) => console.error("Error updating envelope:", err));
+  };
 
-    return (
-        <div>
-            <h1>Personal Budget App</h1>
-
-            {/* Display Envelopes */}
-            <ul>
-                {envelopes.map(env => (
-                    <li key={env.id}>
-                        {env.title}: ${env.budget.toFixed(2)}
-                        <button onClick={() => deleteEnvelope(env.id)}>Delete</button>
-                    </li>
-                ))}
-            </ul>
-
-            {/* Create Envelope Form */}
-            <form onSubmit={createEnvelope}>
-                <input
-                    type="text"
-                    name="title"
-                    value={newEnvelope.title}
-                    onChange={handleInputChange}
-                    placeholder="Envelope Title"
-                    required
-                />
-                <input
-                    type="number"
-                    name="budget"
-                    value={newEnvelope.budget}
-                    onChange={handleInputChange}
-                    placeholder="Budget"
-                    required
-                />
-                <button type="submit">Add Envelope</button>
-            </form>
+  return (
+    <div className="App">
+      <h1>Personal Budget App</h1>
+      <h2>Budget Envelopes:</h2>
+      {envelopes.map((env) => (
+        <div key={env.id}>
+          <p>
+            {env.title}: ${env.budget}
+          </p>
+          <input
+            type="number"
+            value={updateValue}
+            onChange={(e) => setUpdateValue(e.target.value)}
+            placeholder="Update budget"
+          />
+          <button onClick={() => handleUpdate(env.id)}>Update</button>
         </div>
-    );
-};
+      ))}
+
+      <h2>Transactions:</h2>
+      {transactions.length === 0 ? (
+        <p>No transactions available</p>
+      ) : (
+        transactions.map((txn) => (
+          <div key={txn.id}>
+            <p>
+              Transaction #{txn.id} - Envelope ID: {txn.envelope_id} | Amount: ${txn.amount} | Date:{" "}
+              {txn.date} | Description: {txn.description}
+            </p>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
 
 export default App;
